@@ -1,0 +1,18 @@
+Package: pmm
+Type: Package
+Title: Parallel Mixed Model
+Version: 0.99.2
+Date: 2015-02-24
+Author: Anna Drewek
+Maintainer: Anna Drewek <adrewek@stat.math.ethz.ch>
+Description: The Parallel Mixed Model (PMM) approach is suitable for
+        hit selection and cross-comparison of RNAi screens generated in
+        experiments that are performed in parallel under several
+        conditions. For example, we could think of the measurements or
+        readouts from cells under RNAi knock-down, which are infected
+        with several pathogens or which are grown from different cell
+        lines.
+License: GPL-3
+Depends: R (>= 2.10)
+Imports: lme4, splines
+biocViews: SystemsBiology, Regression

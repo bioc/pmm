@@ -1,0 +1,293 @@
+%&pdflatex
+%\VignetteIndexEntry{User manual for R-Package PMM}
+%\VignetteDepends{pmm}
+
+\documentclass[a4paper]{article}
+
+\usepackage[left=3cm,right=3cm,top=3cm,bottom=4cm]{geometry}
+\parindent0ex
+\parskip1ex
+
+\usepackage{Sweave}
+\usepackage{amsmath, amssymb}
+
+
+\begin{document}
+
+\SweaveOpts{prefix.string=plot, eps = FALSE, pdf = TRUE}
+
+
+\title{Fitting the Parallel Mixed Model with the \texttt{PMM} R-package}
+\author{Anna Drewek}
+
+\maketitle
+
+
+\section{Introduction}
+The Parallel Mixed Model (PMM) approach is suitable for hit selection and
+cross-comparison of RNAi screens generated in experiments that are performed in
+parallel under several conditions. For example, we could think of the
+measurements or readouts from cells under RNAi knock-down, which are infected
+with several pathogens or which are grown from different cell lines. PMM
+simultaneously takes into account all the knock-down effects in order to gain
+statistical power for the hit detection. As a special feature, PMM allows
+incorporating RNAi weights that can be assigned according to the additional
+information on the used RNAis or the screening quality. The theory behind PMM is
+shortly described in the second section (more details can be found in
+\cite{Drewek2014}). The third section shows the functionality of the
+\texttt{PMM} R-package by using an RNAi dataset as example.
+
+
+\section{Background}
+PMM is composed of a linear mixed model and an assessment of the local False
+Discovery Rate. The linear mixed model consists of a fixed effect for condition
+and of two random effects for gene $g$ and for gene $g$ within a condition $c$.
+We denote the readout or measurement result of the RNAi $s$ silencing the gene
+$g$ as $y_{gcs}$ for the condition $c$. The linear mixed model of the PMM is
+defined as the following linear model
+$$ Y_{gcs} = \mu_{c} + a_{g} + b_{cg} + \beta X_{gcs} + \varepsilon_{gcs} $$
+where $\mu_{c}$ is the fixed effect for condition $c$ (typically close to 0 if
+the data is Z-Scored), $a_{g}$ is the gene effect overall pathogens, $b_{cg}$ is
+the gene effect within a pathogen and $\varepsilon_{gcs}$ denotes the error
+term.\\ The effect of a certain gene $g$ within a condition $c$ is described by
+the sum of the two random effects:
+$$ c_{cg} = a_{g} + b_{cg} .$$
+A positive estimated $c_{cg}$ effect means that the RNAi readout for condition
+$c$ is enhanced if the corresponding gene $g$ is knocked down. A negative effect
+means that the RNAi readout is reduced. The linear mixed model is estimated by
+the \texttt{lmer} function from the \texttt{lme4} R-package.\\
+To distinguish hit genes, PMM provides as second step an estimate of the local
+False Discovery Rate (FDR). We define the local false discovery rate as
+$$ \widehat{fdr}(c) = \frac{\widehat{\pi_{0}}
+  \widehat{f_{0}}(c)}{\widehat{f(c)}} $$
+where $\pi_{0}$ stands for the proportion of true hits, $f_{0}$ for the
+distribution of the readout for all genes that are hits, $f_{1}$ for the
+distribution of readout for all genes that are no hits and $f(c) = \pi_{0}
+f_{0}(c) + (1 - \pi_{0}) f_{1}(c)$. The three quantities are separately
+estimated by using Maximum Likelihood, Poisson regression and moment estimation
+(for details see \cite{Efron2007} and \cite{Efron2010}).\\
+Additionally, a sharedness score $sh_{g}$ is offered for an easier
+cross-comparison of the results from PMM. The sharedness score indicates if a
+gene is a hit in only one condition or if the hit appears among all conditions.
+The sharedness score is a combination of two quantities:
+$$ sh_{g} = \frac{1}{2} \left( (1 - \text{mean}(fdr_{cg})) + \sum_{c} (fdr_{cg}
+< 1) \right) $$
+The first part defines the shift away from 1 and the second part describes how
+many pathogens support the shift.
+
+
+\section{Working Example}
+The \texttt{PMM} R-package contains the following functions:
+\begin{center}
+    \begin{tabular}{c|l}
+        Function & Description \\
+        \hline
+        \texttt{pmm} & fits the PMM  \\
+        \texttt{hitheatmap} & visualizes the results of PMM \\
+        \texttt{sharedness} & computes the sharedness  \\
+    \end{tabular}
+\end{center}
+
+Moreover, an RNAi dataset on infection with several pathogens is included in the
+R-package.
+
+<<data>>=
+library(pmm)
+data(kinome)
+head(kinome)
+@
+
+The dataset contains the readouts of 826 kinases knock-down
+experiments - each targeted by a total of 12 independent siRNAs coming
+from three manufactures: Ambion (3 siRNAs), Qiagen (4 siRNAs) and
+Dharmacon (4 siRNAs + 1 pool siRNA). After knock-down the cells were
+infected with a pathogen, imaged with a microscope and the infection
+rate, as well as the number of cells were extracted from the
+microscope images. All experiments were conducted for 8 different
+pathogens. For example, the normalized number of cells
+(\Sexpr{kinome[1,"CellCount"]}) and the normalized infection score
+(\Sexpr{kinome[1,"InfectionIndex"]}) from the frist row of the data
+matrix are readouts of the microscope image from the siRNA experiment
+where gene \textit{ABL1} was knocked down with siRNA 1 from the
+manufacturer Ambion (for details see \cite{Drewek2014}).
+
+
+\subsection{Input to PMM}
+In order to use \texttt{pmm} your data needs to be stored as
+\texttt{data.frame}. Each row should correspond to one independent RNAi
+experiment. The data frame should have at least the following three columns:
+\begin{enumerate}
+\item gene identifier
+\item condition
+\item RNAi readout
+\end{enumerate}
+
+In our example, the column \textit{GeneID} identifies the genes, the column
+\textit{condition} corresponds to the pathogens which indicate the different
+conditions and as siRNA readout serve the columns \textit{InfectionIndex} and
+\textit{CellCount}.
+
+\subsubsection*{Note:}
+\begin{enumerate}
+\item The data should contain several independent siRNAs (different seeds)
+  measurements per gene and condition.
+\item The biological replicates (experimental results with identical siRNA (same
+  seeds) and identical condition) should be averaged.
+\end{enumerate}
+
+
+\subsection{Fitting PMM}
+In order to fit the PMM, take the data frame with your measurements as
+input and specify the correct column names by using the arguments
+\texttt{gene.col} and \texttt{condition.col}. As example, we fit the
+PMM for the readout \textit{InfectionIndex}.
+<<fit.pmm.simple>>=
+fit1 <- pmm(kinome, "InfectionIndex", gene.col = "GeneName",
+condition.col = "condition")
+head(fit1)
+@
+
+The default output of \texttt{pmm} is a matrix that contains the
+estimated $c_{cg}$ effects for each condition c and gene g, as well as
+an estimate for the local false discovery rate. A positive estimated
+$c_{cg}$ effect means that the response was enhanced when the
+corresponding gene was knocked down. A negative effect means that the
+response was reduced. Another version of the output giving some more
+information is also available by using the argument \texttt{simplify}:
+
+<<fit.pmm.nonsimple>>=
+fit2 <- pmm(kinome, "InfectionIndex", gene.col = "GeneName",
+condition.col = "condition", simplify = FALSE)
+class(fit2)
+names(fit2)
+identical(fit1,fit2[[1]])
+@
+
+The non-simplified output of \texttt{pmm} is a list of three
+components. The first component contains the simpilified output, i.e
+the matrix with the estimated $c_{cg}$ effects and the estimated local
+false discovery rate, the second component contains the fit of the
+linear mixed model and the third component contains the estimated
+$a_{g}$ and the estimated $b_{cg}$ values. Additional arguments of
+\texttt{pmm} can be used to add weights to the linear mixed model fit
+(\texttt{weight}) or change the number of minimal required siRNA
+replicates for each gene (\texttt{ignore}). Moreover \texttt{pmm} can
+deal with missing values. Missing values appear, for example, if your
+data doesn't contain a full set of combinations for conditions and
+genes, meaning that for each gene not every condition was performed.
+As an example, we set all measurements of the gene \textit{AAK1} and
+the pathogen \textit{Adenovirus} to NA. The result of the pmm fit
+looks as follows:
+
+<<fit.pmm.NAs>>=
+kinome$InfectionIndex[kinome$GeneName == "AAK1" &
+    kinome$condition == "ADENO"] <- rep(NA,12)
+fit3 <- pmm(kinome ,"InfectionIndex", gene.col = "GeneName")
+head(fit3,3)
+@
+
+The output shows now NA for the removed combination.
+
+\subsection{Visualization of Results}
+The results of PMM can be illustrated by a heat map using the function
+\texttt{hitheatmap}.
+
+\SweaveOpts{width=10, height=4}
+<<plotex1, fig = FALSE>>=
+hitheatmap(fit1, threshold = 0.2)
+@
+\setkeys{Gin}{width=.9\textwidth}
+\begin{figure}[!h]
+\centering
+<<fig=TRUE,echo=FALSE>>=
+<<plotex1>>
+@
+\caption{Visualization of PMM results for an easier
+  cross-comparison between the different conditions.}
+\label{Plot1}
+\end{figure}
+
+Red color indicates a positive estimated $c_{cg}$ effect, blue color a
+negative estimated $c_{cg}$ effect. The darker the color, the stronger
+is the estimated $c_{cg}$ effect. The heat map contains only the genes
+for which the local false discovery rate is below a given threshold
+for at least one condition. The yellow star indicates the significant
+genes. The plot can be modified by passing further arguments to the
+\texttt{plot} and the \texttt{par} function
+
+\SweaveOpts{width=10, height=4}
+<<plotex2, fig = FALSE>>=
+hitheatmap(fit1, threshold = 0.4, cex.main = 2,
+main = "My modified plot", col.main = "white",
+col.axis = "white", cex.axis = 0.8, bg = "black", mar = c(6,8,4,6))
+@
+\setkeys{Gin}{width=.9\textwidth}
+\begin{figure}[!h]
+\centering
+<<fig=TRUE,echo=FALSE>>=
+<<plotex2>>
+@
+\caption{Modified Heat map.}
+\label{Plot2}
+\end{figure}
+
+Missing combinations are plotted in white color and marked by NA. Use
+the argument \texttt{na.omit = na.omit} to plot only complete
+combinations.
+
+\subsection{Adding Sharedness Score}
+The sharedness score returns a value between $0$ and $1$ for each
+gene. Score $0$ indicates that a gene is not shared among the
+condition and score $1$ that the gene is significant among all
+conditions. The sharedness score is only computed for genes that pass
+a given \texttt{threshold}.
+
+<<sharedness.fit>>=
+sh <- sharedness(fit1, threshold = 0.2)
+sh[order(sh$Sharedness),]
+@
+
+The sharedness score can also be visualized within the
+\texttt{hitheatmap}. Use the argument \texttt{sharedness.score = TRUE}
+to add a row for the sharedness score. The darker the green color, the
+stronger is the sharedness among the conditions.
+
+\SweaveOpts{width=10, height=5}
+<<plotex3, fig = FALSE>>=
+hitheatmap(fit1, sharedness.score = TRUE, main = "My hits found by PMM")
+@
+\setkeys{Gin}{width=.9\textwidth}
+\begin{figure}[ht]
+\centering
+<<fig=TRUE,echo=FALSE>>=
+<<plotex3>>
+@
+\caption{Visualization of PMM results with sharedness score.}
+\label{Plot3}
+\end{figure}
+
+
+
+\begin{thebibliography}{50}
+\bibitem{Drewek2014}
+    R\"am\"o, P., Drewek, A., Arrieumerlou, C., Beerenwinkel, N.,
+    Ben-Tekaya H., Cardel, B., Casanova, A., Conde-Alvarez. R.,
+    Cossart, P., Csucs, G., Eicher, S., Emmenlauer, M. Greber, U.,
+    Hardt, W.-D., Helenius, A., Kasper, C., Kaufmann, A., Kreibich,
+    S., K\"ubacher, A., Kunszt, P., Low, S.H., Mercer, J., Mudrak, D.,
+    Muntwiler, S., Pelkmans, L., Pizarro-Cerda, J., Podvinec, M.,
+    Pujadas, E., Rinn, B., Rouilly, V., Schmich F., Siebourg, J.,
+    Snijder, B., Stebler, M., Studer, G., Szczurek, E., Truttmann, M.,
+    von Mering, C., Vonderheit, A., Yakimovich, A., B\"uhlmann, P. and
+    Dehio, C. \textsl{Simultaneous analysis of large-scale RNAi
+      screens for pathogen entry}. BMC Genomics, 15(1162):1471-2164,
+    2014.
+\bibitem{Efron2007}
+    Efron, B. \textsl{Size, Power and False Discovery Rates}. The
+    Annals of Statistics, 35(4):1351-1377, 2007.
+\bibitem{Efron2010}
+    Efron, B. \textsl{Empirical Bayes Methods for Estimation Testing
+      and Prediction}. Cambridge University Press, 2014.
+\end{thebibliography}
+
+\end{document}

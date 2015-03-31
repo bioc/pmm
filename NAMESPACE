@@ -1,0 +1,6 @@
+export(hitheatmap, pmm, sharedness)
+
+importFrom("lme4", lmer, ranef)
+
+importFrom("splines", ns)
+
