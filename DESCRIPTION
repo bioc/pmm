@@ -1,7 +1,7 @@
 Package: pmm
 Type: Package
 Title: Parallel Mixed Model
-Version: 1.14.0
+Version: 1.15.0
 Date: 2015-02-24
 Author: Anna Drewek
 Maintainer: Anna Drewek <adrewek@stat.math.ethz.ch>
